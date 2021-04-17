@@ -1,10 +1,11 @@
 const expressAsyncHandler = require('express-async-handler')
 const jwt = require('jsonwebtoken')
 const User = require('../models/userModel.js')
+const Token = require('../models/tokenModel.js')
 
-const protect = expressAsyncHandler(async (req, res, next) => {
+const verifyAccessToken = expressAsyncHandler(async (req, res, next) => {
 	let token
-	console.log(req.headers.authorization)
+
 	if (
 		req.headers.authorization &&
 		req.headers.authorization.startsWith('Bearer')
@@ -30,4 +31,32 @@ const protect = expressAsyncHandler(async (req, res, next) => {
 	}
 })
 
-module.exports = { protect }
+const verifyRefreshToken = expressAsyncHandler(async (req, res, next) => {
+	let token
+
+	if (req.cookies.refresh_token) {
+		try {
+			token = req.cookies.refresh_token
+			const decoded = jwt.verify(token, process.env.JWT_SECRET)
+
+			const retrievedToken = await Token.findById(decoded.id)
+			if (req.user._id === retrievedToken._id) {
+				next()
+			} else {
+				res.status(401)
+				throw new Error('Not authorized, token does not match')
+			}
+		} catch (error) {
+			console.error(error)
+			res.status(401)
+			throw new Error('Not authorized, token failed')
+		}
+	}
+
+	if (!token) {
+		res.status(401)
+		throw new Error('Not authorized, no token')
+	}
+})
+
+module.exports = { verifyAccessToken, verifyRefreshToken }
